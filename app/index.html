@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fakturace</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header class="topbar no-print">
+    <div class="topbar-logo-area">
+      <div class="logo-wrapper">
+        <h1 class="topbar-logo">Fakturace<span class="logo-dot"></span></h1>
+        <a href="https://prodbykosta.com" target="_blank" class="logo-by">by prodbykosta</a>
+      </div>
+    </div>
+    <button id="burger-menu-btn" class="burger-menu-btn" aria-label="Menu">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+    </button>
+    <nav id="topbar-nav">
+      <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+      <button class="tab-btn" data-tab="invoices">Faktury</button>
+      <button class="tab-btn" data-tab="quotes">Nabídky</button>
+      <button class="tab-btn" data-tab="incomes">Příjmy</button>
+      <button class="tab-btn" data-tab="expenses">Výdaje</button>
+      <button class="tab-btn" data-tab="clients">Klienti</button>
+      <button class="tab-btn" data-tab="files">Soubory</button>
+      <button class="tab-btn" data-tab="bank">Banka</button>
+      <button class="tab-btn" data-tab="reports">Hlášení</button>
+      <button class="tab-btn" data-tab="settings">Nastavení</button>
+    </nav>
+  </header>
+
+  <!-- ============ DASHBOARD ============ -->
+  <section id="tab-dashboard" class="tab no-print">
+    <div class="section-head">
+      <h2>Dashboard</h2>
+      <label class="year-filter">Období&nbsp;<select id="dash-year"></select></label>
+    </div>
+    <div id="dashboard-content"></div>
+  </section>
+  <div id="chart-tip" class="chart-tip" hidden></div>
+
+  <!-- ============ SOUBORY ============ -->
+  <section id="tab-files" class="tab no-print" hidden>
+    <div class="section-head">
+      <h2>Soubory</h2>
+      <div class="files-toolbar">
+        <input id="file-search" type="search" placeholder="Vyhledat">
+        <button id="force-sync-folders" class="btn-ghost" data-icon="folder">Rozřadit do podsložek</button>
+        <button id="analyze-selected" class="btn-ghost" data-icon="ai">Analyzovat vybrané</button>
+        <button id="upload-files" class="btn-primary" data-icon="upload">Nahrát</button>
+        <input type="file" id="files-input" multiple hidden>
+      </div>
+    </div>
+    <p class="hint-block" id="files-hint"></p>
+    <div id="file-breadcrumb" class="breadcrumb"></div>
+    <div id="bulk-bar" class="bulk-bar" hidden>
+      <strong id="bulk-count"></strong>
+      <button id="bulk-all" class="btn-ghost btn-small">Vybrat vše</button>
+      <button id="bulk-analyze" class="btn-ghost btn-small">Analyzovat</button>
+      <button id="bulk-convert" class="btn-ghost btn-small" data-icon="convert">Převést do PDF</button>
+      <span class="bulk-move-group">
+        <select id="bulk-move-cat"></select>
+        <button id="bulk-move" class="btn-ghost btn-small">Přesunout</button>
+      </span>
+      <button id="bulk-delete" class="btn-ghost btn-small btn-danger">Smazat</button>
+      <button id="bulk-clear" class="btn-ghost btn-small">Zrušit výběr</button>
+    </div>
+    <div id="file-list"></div>
+    <div id="file-usage" class="file-usage"></div>
+  </section>
+
+  <!-- ============ MODAL: EXPORT FAKTUR ============ -->
+  <div id="export-modal" class="modal no-print" hidden>
+    <div class="modal-box">
+      <h3 data-icon="download">Export faktur</h3>
+      <form id="export-form" class="form-grid" onsubmit="return false">
+        <label class="full">Formát
+          <select name="format"></select>
+        </label>
+        <label>Za období
+          <select name="period"></select>
+        </label>
+        <label>Podle data
+          <select name="dateBy">
+            <option value="issued">vystavení</option>
+            <option value="paid">zaplacení</option>
+          </select>
+        </label>
+        <div class="export-range full form-grid" hidden>
+          <label>Od <input name="dateFrom" type="date"></label>
+          <label>Do <input name="dateTo" type="date"></label>
+        </div>
+        <label class="full">Pro klienta
+          <select name="client"></select>
+        </label>
+        <fieldset class="full export-status">
+          <legend>Stav</legend>
+          <label class="checkbox-label"><input type="checkbox" name="exp-status" value="issued" checked> Vystavené a po splatnosti</label>
+          <label class="checkbox-label"><input type="checkbox" name="exp-status" value="paid" checked> Zaplacené</label>
+          <label class="checkbox-label"><input type="checkbox" name="exp-status" value="cancelled"> Stornované</label>
+        </fieldset>
+        <p id="export-count" class="full export-count"></p>
+        <div class="full form-actions">
+          <button type="button" id="export-run" class="btn-primary">Exportovat</button>
+          <button type="button" class="btn-ghost modal-close">Zavřít</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: KONVERTOR ============ -->
+  <div id="convert-modal" class="modal no-print" hidden>
+    <div class="modal-box">
+      <h3 data-icon="convert">Převod souboru</h3>
+      <p id="convert-file-name" class="convert-name"></p>
+      <div id="convert-options"></div>
+      <p class="convert-hint">U převodu do PDF nejdřív uvidíš náhled, kde si nastavíš velikost a orientaci. Výsledek se uloží jako nový soubor do stejné složky.</p>
+      <div class="form-actions">
+        <button type="button" class="btn-ghost modal-close">Zavřít</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: AI ANALÝZA ============ -->
+  <div id="ai-modal" class="modal no-print" hidden>
+    <div class="modal-box modal-wide">
+      <h3 data-icon="ai">AI analýza dokumentů</h3>
+      <div id="ai-progress" class="ai-note" hidden></div>
+      <div id="ai-results"></div>
+      <div class="form-actions">
+        <button id="ai-save" class="btn-primary" hidden>Uložit vybrané</button>
+        <button type="button" class="btn-ghost modal-close">Zavřít</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ FAKTURY ============ -->
+  <section id="tab-invoices" class="tab no-print" hidden>
+    <div class="section-head">
+      <h2>Faktury</h2>
+      <div>
+        <select id="invoice-sort" title="Řazení">
+          <option value="newest">Nejnovější</option>
+          <option value="oldest">Nejstarší</option>
+        </select>
+        <button id="open-export" class="btn-ghost" data-icon="download">Export</button>
+        <button id="new-recurring" class="btn-ghost" data-icon="repeat">Pravidelná</button>
+        <button id="new-invoice" class="btn-primary" data-icon="plus">Nová faktura</button>
+      </div>
+    </div>
+    <div id="invoice-stats"></div>
+    <div id="recurring-banner"></div>
+    <div id="recurring-list"></div>
+    <div id="invoice-list"></div>
+  </section>
+
+  <!-- ============ NABÍDKY ============ -->
+  <section id="tab-quotes" class="tab no-print" hidden>
+    <div class="section-head">
+      <h2>Cenové nabídky</h2>
+      <button id="new-quote" class="btn-primary" data-icon="plus">Nová nabídka</button>
+    </div>
+    <p class="hint-block">Nabídku pošli klientovi jako PDF (Náhled → Uložit jako PDF). Když ji přijme, jedním klikem z ní vystavíš fakturu.</p>
+    <div id="quote-list"></div>
+  </section>
+
+  <!-- ============ MODAL: NABÍDKA ============ -->
+  <div id="quote-modal" class="modal no-print" hidden>
+    <div class="modal-box modal-wide">
+      <h3 id="quote-modal-title">Nová nabídka</h3>
+      <form id="quote-form">
+        <input type="hidden" name="id">
+        <div class="form-grid">
+          <label>Klient
+            <select name="clientId" required></select>
+          </label>
+          <label>Číslo nabídky <input name="number" required></label>
+          <label>Datum vystavení <input name="issuedOn" type="date" required></label>
+          <label>Platnost
+            <select name="validDays">
+              <option value="7">7 dní</option>
+              <option value="14" selected>14 dní</option>
+              <option value="30">30 dní</option>
+              <option value="60">60 dní</option>
+              <option value="90">90 dní</option>
+            </select>
+          </label>
+          <label class="checkbox-label"><input type="checkbox" name="rounding" checked> Zaokrouhlit celkovou částku na koruny</label>
+          <label>Měna
+            <select name="currency">
+              <option value="CZK" selected>CZK (Česká koruna)</option>
+              <option value="EUR">EUR (Euro)</option>
+              <option value="USD">USD (Americký dolar)</option>
+              <option value="GBP">GBP (Britská libra)</option>
+            </select>
+          </label>
+          <label class="full">Úvodní text (nepovinný) <input name="intro" placeholder="např. Na základě naší schůzky posílám nabídku…"></label>
+        </div>
+        <h4>Položky</h4>
+        <div class="lines-wrap">
+        <table class="lines-table">
+          <thead><tr><th>Popis</th><th class="w-qty">Počet</th><th class="w-unit">Jednotka</th><th class="w-price">Cena/ks (Kč)</th><th class="w-vat vat-only">DPH %</th><th class="w-sum">Celkem</th><th></th></tr></thead>
+          <tbody id="quote-lines-body"></tbody>
+        </table>
+        </div>
+        <button type="button" id="quote-add-line" class="btn-ghost" data-icon="plus">Přidat položku</button>
+        <div class="invoice-totals">
+          <div id="quote-form-total" class="form-total"></div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">Uložit nabídku</button>
+          <button type="button" class="btn-ghost modal-close">Zrušit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ VÝDAJE ============ -->
+  <section id="tab-expenses" class="tab no-print" hidden>
+    <div class="section-head">
+      <h2>Výdaje</h2>
+      <div>
+        <button id="export-expenses-csv" class="btn-ghost">Export CSV</button>
+        <button id="new-recurring-expense" class="btn-ghost" data-icon="repeat">Pravidelný výdaj</button>
+        <button id="new-expense" class="btn-primary" data-icon="plus">Nový výdaj</button>
+      </div>
+    </div>
+    <p class="hint-block">Výdaje můžeš zadat ručně, nebo nahraj přijatou fakturu (PDF) do záložky <strong>Soubory</strong> a klikni na <strong>Analyzovat</strong> — Ollama z ní vytáhne dodavatele, částku i datum.</p>
+    <div id="recurring-expenses-list"></div>
+    <div id="expense-list"></div>
+  </section>
+
+  <!-- ============ PŘÍJMY (mimo faktury) ============ -->
+  <section id="tab-incomes" class="tab no-print" hidden>
+    <div class="section-head">
+      <h2>Příjmy</h2>
+      <div>
+        <button id="new-recurring-income" class="btn-ghost" data-icon="repeat">Pravidelný příjem</button>
+        <button id="new-income" class="btn-primary" data-icon="plus">Nový příjem</button>
+      </div>
+    </div>
+    <p class="hint-block">Příjmy mimo faktury — výplaty Apple/Google, provize, úroky… Nahraj výpis nebo report (i CSV) do <strong>Souborů</strong> a dej <strong>Analyzovat</strong>, AI z něj vytáhne vyplacenou částku. Fakturové příjmy jsou v záložce Faktury; obojí se počítá do dashboardu.</p>
+    <div id="recurring-incomes-list"></div>
+    <div id="income-list"></div>
+  </section>
+
+  <!-- ============ MODAL: PŘÍJEM ============ -->
+  <div id="income-modal" class="modal no-print" hidden>
+    <div class="modal-box">
+      <h3 id="income-modal-title">Nový příjem</h3>
+      <form id="income-form" class="form-grid">
+        <input type="hidden" name="id">
+        <input type="hidden" name="fileId">
+        <input type="hidden" name="source">
+        <label>Zdroj <input name="supplier" required placeholder="Apple / Google / úroky…"></label>
+        <label>Částka (Kč) <input name="amount" type="number" step="any" required></label>
+        <label>Datum <input name="date" type="date" required></label>
+        <label title="Když výplata přijde v jiném roce, než kam daňově patří (např. prosincová výplata vyplacená v lednu), zadej sem měsíc, do kterého se má příjem počítat.">Započítat do období <input name="period" type="month"> <span class="label-hint">volitelné</span></label>
+        <label class="full">Popis <input name="note" placeholder="za co příjem je"></label>
+        <div class="full form-actions">
+          <button type="submit" class="btn-primary">Uložit příjem</button>
+          <button type="button" class="btn-ghost modal-close">Zrušit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: VÝDAJ ============ -->
+  <div id="expense-modal" class="modal no-print" hidden>
+    <div class="modal-box">
+      <h3 id="expense-modal-title">Nový výdaj</h3>
+      <p id="expense-ai-note" class="ai-note" hidden data-icon="ai">Předvyplněno AI analýzou — zkontroluj hodnoty před uložením.</p>
+      <form id="expense-form" class="form-grid">
+        <input type="hidden" name="id">
+        <input type="hidden" name="fileId">
+        <input type="hidden" name="source">
+        <label>Dodavatel <input name="supplier" required placeholder="Forpsi / Adobe / …"></label>
+        <label>Částka (Kč) <input name="amount" type="number" step="any" required></label>
+        <label>Datum <input name="date" type="date" required></label>
+        <label>Kategorie
+          <select name="category">
+            <option>Software</option><option>Hardware</option><option>Služby</option>
+            <option>Hosting</option><option>Kancelář</option><option>Doprava</option><option selected>Ostatní</option>
+          </select>
+        </label>
+        <label class="full">Popis <input name="note" placeholder="co bylo nakoupeno"></label>
+        <div class="full form-actions">
+          <button type="submit" class="btn-primary">Uložit výdaj</button>
+          <button type="button" class="btn-ghost modal-close">Zrušit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ KLIENTI ============ -->
+  <section id="tab-clients" class="tab no-print" hidden>
+    <div class="section-head">
+      <h2>Klienti</h2>
+      <button id="new-client" class="btn-primary" data-icon="plus">Nový klient</button>
+    </div>
+    <div id="client-list"></div>
+  </section>
+
+  <!-- ============ HLÁŠENÍ (SHV / DPH) ============ -->  <!-- ============ BANKA ============ -->
+  <section id="tab-bank" class="tab no-print" hidden>
+    <div class="section-head">
+      <h2>Import bankovních výpisů</h2>
+      <div>
+        <button id="bank-upload" class="btn-primary" data-icon="upload">Nahrát výpis (CSV/GPC)</button>
+        <input type="file" id="bank-file" accept=".csv,.gpc,.txt" hidden>
+      </div>
+    </div>
+    <p class="hint-block">Nahraj CSV nebo GPC výpis z banky. Systém automaticky spáruje transakce s fakturami podle variabilního symbolu a částky.</p>
+    <div id="bank-stats" class="tiles" style="margin-bottom:16px"></div>
+    <div id="bank-list"></div>
+  </section>
+
+  <section id="tab-reports" class="tab no-print" hidden>
+    <div class="section-head">
+      <h2>Hlášení pro MOJE daně</h2>
+      <div>
+        <button id="new-pdf-archive" class="btn-primary" data-icon="upload">Nahrát PDF do archivu</button>
+        <input type="file" id="archive-pdf-file" accept=".pdf" hidden>
+        <button id="new-kh1" class="btn-primary" data-icon="plus">Kontrolní hlášení</button>
+        <button id="new-dp3" class="btn-primary" data-icon="plus">Přiznání DPH</button>
+        <button id="new-shv" class="btn-primary" data-icon="plus">Souhrnné hlášení</button>
+      </div>
+    </div>
+    <p class="hint-block">Vygenerované XML nahraješ na <strong>mojedane.cz</strong> (Elektronická podání → Načtení souboru), zkontroluješ, případně doplníš a odešleš.</p>
+    <div id="report-list"></div>
+  </section>
+
+  <!-- ============ MODAL: SOUHRNNÉ HLÁŠENÍ ============ -->
+  <div id="shv-modal" class="modal no-print" hidden>
+    <div class="modal-box modal-wide">
+      <h3 id="shv-modal-title">Souhrnné hlášení (DPHSHV)</h3>
+      <form id="shv-form">
+        <input type="hidden" name="id">
+        <div class="form-grid">
+          <label>Měsíc
+            <select name="mesic"></select>
+          </label>
+          <label>Rok <input name="rok" type="number" min="2020" max="2099" required></label>
+          <label>Typ hlášení
+            <select name="forma">
+              <option value="R">Řádné</option>
+              <option value="N">Následné</option>
+            </select>
+          </label>
+          <label>Datum podání <input name="d_poddp" type="date" required></label>
+        </div>
+        <h4>Řádky hlášení</h4>
+        <div class="lines-wrap">
+        <table class="lines-table">
+          <thead><tr><th class="w-stat">Stát</th><th>DIČ odběratele (bez kódu státu)</th><th class="w-kod">Kód plnění</th><th class="w-qty">Počet</th><th class="w-price">Hodnota (Kč)</th><th></th></tr></thead>
+          <tbody id="shv-lines"></tbody>
+        </table>
+        </div>
+        <button type="button" id="shv-add-line" class="btn-ghost" data-icon="plus">Přidat řádek</button>
+        <h4>Údaje poplatníka (uloží se pro příště)</h4>
+        <div class="form-grid form-grid-3">
+          <label>DIČ (bez CZ) <input name="dic" required placeholder="1234567890"></label>
+          <label>Jméno <input name="jmeno" required></label>
+          <label>Příjmení <input name="prijmeni" required></label>
+          <label>Ulice <input name="ulice"></label>
+          <label>Č. popisné <input name="c_pop"></label>
+          <label>Č. orientační <input name="c_orient"></label>
+          <label>Obec <input name="naz_obce"></label>
+          <label>PSČ <input name="psc"></label>
+          <label>E-mail <input name="email" type="email"></label>
+          <label>Kód fin. úřadu (c_ufo) <input name="c_ufo" placeholder="např. 461"></label>
+          <label>Územní pracoviště (c_pracufo) <input name="c_pracufo" placeholder="např. 3002"></label>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">Uložit hlášení</button>
+          <button type="button" class="btn-ghost modal-close">Zrušit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: PŘIZNÁNÍ DPH ============ -->
+  <div id="dp3-modal" class="modal no-print" hidden>
+    <div class="modal-box modal-wide">
+      <h3 id="dp3-modal-title">Přiznání k DPH (DPHDP3)</h3>
+      <form id="dp3-form">
+        <input type="hidden" name="id">
+        <div class="form-grid">
+          <label>Měsíc
+            <select name="mesic"></select>
+          </label>
+          <label>Rok <input name="rok" type="number" min="2020" max="2099" required></label>
+          <label>Typ plátce
+            <select name="typ_platce">
+              <option value="I">Identifikovaná osoba</option>
+              <option value="P">Plátce DPH</option>
+            </select>
+          </label>
+          <label>Typ přiznání
+            <select name="forma">
+              <option value="B">Řádné</option>
+              <option value="O">Opravné</option>
+              <option value="D">Dodatečné</option>
+            </select>
+          </label>
+          <label>Datum podání <input name="d_poddp" type="date" required></label>
+        </div>
+        <h4>Hodnoty přiznání (vyplň jen řádky, které potřebuješ; Kč)</h4>
+        <table class="dp3-table">
+          <thead><tr><th>Ř.</th><th>Popis</th><th class="w-price">Základ daně</th><th class="w-price">Daň</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Zdanitelná plnění v tuzemsku – základní sazba</td><td><input name="obrat23" type="number" step="any"></td><td><input name="dan23" type="number" step="any"></td></tr>
+            <tr><td>2</td><td>Zdanitelná plnění v tuzemsku – snížená sazba</td><td><input name="obrat5" type="number" step="any"></td><td><input name="dan5" type="number" step="any"></td></tr>
+            <tr><td>5</td><td>Přijetí služby z jiného členského státu EU – základní sazba</td><td><input name="p_sl23_e" type="number" step="any"></td><td><input name="dan_psl23_e" type="number" step="any"></td></tr>
+            <tr><td>6</td><td>Přijetí služby z jiného členského státu EU – snížená sazba</td><td><input name="p_sl5_e" type="number" step="any"></td><td><input name="dan_psl5_e" type="number" step="any"></td></tr>
+            <tr><td>12</td><td>Ostatní zdanitelná plnění (služby ze 3. zemí…) – základní sazba</td><td><input name="p_sl23_z" type="number" step="any"></td><td><input name="dan_psl23_z" type="number" step="any"></td></tr>
+            <tr><td>13</td><td>Ostatní zdanitelná plnění – snížená sazba</td><td><input name="p_sl5_z" type="number" step="any"></td><td><input name="dan_psl5_z" type="number" step="any"></td></tr>
+            <tr><td>21</td><td>Poskytnutí služeb s místem plnění v jiném členském státě (vazba na souhrnné hlášení)</td><td><input name="pln_sluzby" type="number" step="any"></td><td class="dim">—</td></tr>
+            <tr><td>62</td><td>Daň na výstupu celkem (dopočítá se, jde upravit)</td><td class="dim">—</td><td><input name="dan_zocelk" type="number" step="any"></td></tr>
+            <tr><td>63</td><td>Odpočet daně celkem</td><td class="dim">—</td><td><input name="odp_zocelk" type="number" step="any"></td></tr>
+            <tr><td>64</td><td>Vlastní daňová povinnost (dopočítá se, jde upravit)</td><td class="dim">—</td><td><input name="dano_da" type="number" step="any"></td></tr>
+          </tbody>
+        </table>
+        <h4>Údaje poplatníka (uloží se pro příště)</h4>
+        <div class="form-grid form-grid-3">
+          <label>DIČ (bez CZ) <input name="dic" required placeholder="1234567890"></label>
+          <label>Jméno <input name="jmeno" required></label>
+          <label>Příjmení <input name="prijmeni" required></label>
+          <label>Ulice <input name="ulice"></label>
+          <label>Č. popisné <input name="c_pop"></label>
+          <label>Č. orientační <input name="c_orient"></label>
+          <label>Obec <input name="naz_obce"></label>
+          <label>PSČ <input name="psc"></label>
+          <label>E-mail <input name="email" type="email"></label>
+          <label>Kód fin. úřadu (c_ufo) <input name="c_ufo" placeholder="např. 461"></label>
+          <label>Územní pracoviště (c_pracufo) <input name="c_pracufo" placeholder="např. 3002"></label>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">Uložit přiznání</button>
+          <button type="button" class="btn-ghost modal-close">Zrušit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: KONTROLNÍ HLÁŠENÍ DPH ============ -->
+  <div id="kh1-modal" class="modal no-print" hidden>
+    <div class="modal-box modal-wide">
+      <h3 id="kh1-modal-title">Kontrolní hlášení DPH (DPHKH1)</h3>
+      <form id="kh1-form">
+        <input type="hidden" name="id">
+        <div class="form-grid">
+          <label>Měsíc
+            <select name="mesic"></select>
+          </label>
+          <label>Rok <input name="rok" type="number" min="2020" max="2099" required></label>
+          <label>Typ hlášení
+            <select name="forma">
+              <option value="R">Řádné</option>
+              <option value="N">Následné</option>
+              <option value="O">Opravné</option>
+            </select>
+          </label>
+          <label>Datum podání <input name="d_poddp" type="date" required></label>
+        </div>
+        <fieldset class="kh-fieldset"><legend>Poplatník</legend>
+        <div class="form-grid form-grid-3">
+          <label>DIČ (bez CZ) <input name="dic" required></label>
+          <label>Typ DS <select name="typ_ds"><option value="F">Fyzická osoba</option><option value="P">Právnická osoba</option></select></label>
+          <label>Jméno <input name="jmeno"></label>
+          <label>Příjmení <input name="prijmeni"></label>
+          <label>Ulice <input name="ulice"></label>
+          <label>Č. popisné <input name="c_pop"></label>
+          <label>Č. orientační <input name="c_orient"></label>
+          <label>Obec <input name="naz_obce"></label>
+          <label>PSČ <input name="psc"></label>
+          <label>E-mail <input name="email" type="email"></label>
+          <label>Číslo FÚ <input name="c_ufo" placeholder="461"></label>
+          <label>Č. pracoviště FÚ <input name="c_pracufo" placeholder="2461"></label>
+        </div>
+        </fieldset>
+        <fieldset class="kh-fieldset"><legend>A.4 / A.5 — uskutečněná plnění (faktury vydané)</legend>
+        <div class="form-grid">
+          <label class="full">
+            <button type="button" id="kh1-autofill" class="btn-primary btn-small" data-icon="refresh">Auto-fill z faktur za zvolené období</button>
+          </label>
+        </div>
+        <div style="overflow-x: auto; margin-bottom: 16px; border: 1px solid var(--hairline); border-radius: var(--radius);">
+          <table class="list-table kh-table" style="font-size:13px; border:none; margin:0; border-radius:0;">
+            <thead><tr><th>DIČ odběratele</th><th>Č. dokladu</th><th>DPPD</th><th>Základ 1</th><th>DPH 1</th><th>Základ 2</th><th>DPH 2</th><th></th></tr></thead>
+            <tbody id="kh1-a-lines"></tbody>
+          </table>
+        </div>
+        <button type="button" id="kh1-add-a" class="btn-ghost btn-small" data-icon="plus" style="margin:4px 0">Přidat řádek A</button>
+        </fieldset>
+        <fieldset class="kh-fieldset"><legend>B.2 / B.3 — přijatá plnění (faktury přijaté)</legend>
+        <div style="overflow-x: auto; margin-bottom: 16px; border: 1px solid var(--hairline); border-radius: var(--radius);">
+          <table class="list-table kh-table" style="font-size:13px; border:none; margin:0; border-radius:0;">
+            <thead><tr><th>DIČ dodavatele</th><th>Č. dokladu</th><th>DPPD</th><th>Základ 1</th><th>DPH 1</th><th>Základ 2</th><th>DPH 2</th><th></th></tr></thead>
+            <tbody id="kh1-b-lines"></tbody>
+          </table>
+        </div>
+        <button type="button" id="kh1-add-b" class="btn-ghost btn-small" data-icon="plus" style="margin:4px 0">Přidat řádek B</button>
+        </fieldset>
+        <div class="form-grid">
+          <div class="full form-actions">
+            <button type="submit" class="btn-primary">Uložit kontrolní hlášení</button>
+            <button type="button" class="btn-ghost modal-close">Zavřít</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ NASTAVENÍ ============ -->
+  <section id="tab-settings" class="tab no-print" hidden>
+    <div class="section-head">
+      <h2>Moje údaje (dodavatel)</h2>
+      <div style="display:flex; gap:12px; align-items:center;">
+        <label style="margin:0; flex-direction:row; align-items:center; font-size:14px;">Aktivní profil: <select id="supplier-select" style="width:auto; padding:6px 30px 6px 12px;"></select></label>
+        <button type="button" id="new-supplier-btn" class="btn-primary" data-icon="plus">Nový profil (firma)</button>
+        <button type="button" id="del-supplier-btn" class="btn-ghost btn-danger" style="display:none">Smazat tento profil</button>
+      </div>
+    </div>
+    <form id="settings-form" class="card form-grid">
+      <label>Jméno / název <input name="name" required placeholder="Jan Novák"></label>
+      <label>Ulice a č.p. <input name="street" placeholder="Dlouhá 123"></label>
+      <label>Město <input name="city" placeholder="Praha"></label>
+      <label>PSČ <input name="zip" placeholder="110 00"></label>
+      <label>IČO <input name="ico" placeholder="12345678"></label>
+      <label>DIČ <input name="dic" placeholder="(nech prázdné, pokud nejsi plátce DPH)"></label>
+      <label class="checkbox-label"><input type="checkbox" name="vatPayer"> Jsem plátce DPH</label>
+      <label>Bankovní účet <input name="bankAccount" required placeholder="123456789/0100"></label>
+      <label>IBAN (dopočítá se) <input name="iban" placeholder="automaticky z čísla účtu"></label>
+      <label>SWIFT/BIC <input name="swift" placeholder="RZBCCZPPXXX"></label>
+      <h4 class="full settings-sub">EUR účet (pro faktury v EUR)</h4>
+      <label>Bankovní účet EUR <input name="bankAccountEur" placeholder="DE89370400440532013000"></label>
+      <label>IBAN EUR <input name="ibanEur" placeholder="DE89370400440532013000"></label>
+      <label>SWIFT/BIC EUR <input name="swiftEur" placeholder="COBADEFFXXX"></label>
+      <label>Web <input name="web" placeholder="www.priklad.cz"></label>
+      <label>Telefon <input name="phone" placeholder="+420 123 456 789"></label>
+      <label>E-mail <input name="email" type="email" placeholder="ja@example.com"></label>
+      <label>Výchozí splatnost (dní)
+        <select name="dueDays">
+          <option value="7">7</option>
+          <option value="14" selected>14</option>
+          <option value="21">21</option>
+          <option value="30">30</option>
+        </select>
+      </label>
+      <label title="Podle vystavení: příjem se počítá do měsíce, kdy byla faktura vystavena (Příjmy = Fakturováno + ostatní). Podle úhrady: počítají se jen zaplacené faktury k datu, kdy peníze přišly.">Příjmy počítat podle
+        <select name="incomeBasis">
+          <option value="issued">data vystavení faktury</option>
+          <option value="paid">data úhrady (jen zaplacené)</option>
+        </select>
+      </label>
+      <label class="full">Text v patičce faktury
+        <textarea name="footerNote" rows="4" placeholder="Fyzická osoba zapsaná v živnostenském rejstříku.&#10;&#10;Jan Novák&#10;www.priklad.cz"></textarea>
+      </label>
+      <h4 class="full settings-sub">Nastavení souborů a exportu</h4>
+      <!-- useSubfolders odebráno - řazení je nyní automatické -->
+      <label class="checkbox-label full"><input type="checkbox" name="disableAutoPdf"> Vypnout automatické generování PDF (Tlačítko v náhledu spustí klasický Tisk / Uložit jako PDF)</label>
+      <h4 class="full settings-sub">Nastavení e-mailu (SMTP server)</h4>
+      <label>SMTP Host <input name="smtpHost" placeholder="smtp.seznam.cz"></label>
+      <label>SMTP Port <input name="smtpPort" type="number" placeholder="465"></label>
+      <label>Uživatel <input name="smtpUser" placeholder="tvuj@email.cz"></label>
+      <label>Heslo <input name="smtpPass" type="password" placeholder="tvojeheslo"></label>
+      <label>Odesílatel (From) <input name="smtpFrom" placeholder="Jméno &lt;tvuj@email.cz&gt;"></label>
+      <label>Odpovědět na (Reply-To) <input name="smtpReplyTo" placeholder="tvuj@email.cz"></label>
+      <h4 class="full settings-sub">AI analýza faktur (Ollama)</h4>
+      <label>Adresa Ollama <input name="ollamaUrl" placeholder="http://localhost:11434"></label>
+      <label>Model
+        <span class="model-row">
+          <select name="ollamaModel" id="ollama-model"><option value="">— načti modely —</option></select>
+          <button type="button" id="load-models" class="btn-ghost">Načíst</button>
+        </span>
+      </label>
+      <div class="full form-actions"><button type="submit" class="btn-primary">Uložit nastavení</button><span id="settings-saved" class="saved-msg"></span></div>
+    </form>
+
+    <div class="card backup-block">
+      <h4 class="settings-sub backup-title">Záloha a obnova dat</h4>
+      <p class="backup-note"><strong>Data (JSON)</strong> = všechna data aplikace (faktury, klienti, příjmy, výdaje, nabídky, pravidelné faktury, hlášení, nastavení), ale bez nahraných souborů. <strong>Kompletní záloha (ZIP)</strong> = data i všechny soubory ze složky app/data v jednom archivu.</p>
+      <div class="form-actions">
+        <button id="backup-export" class="btn-ghost" data-icon="download">Stáhnout data (JSON)</button>
+        <button id="backup-export-zip" class="btn-primary" data-icon="download">Kompletní záloha (ZIP)</button>
+        <button id="backup-import" class="btn-ghost" data-icon="upload">Obnovit ze zálohy</button>
+        <input type="file" id="backup-file" accept=".json,.zip" hidden>
+      </div>
+      <p id="backup-status" class="saved-msg"></p>
+    </div>
+  </section>
+
+  <!-- ============ MODAL: KLIENT ============ -->
+  <div id="client-modal" class="modal no-print" hidden>
+    <div class="modal-box">
+      <h3 id="client-modal-title">Nový klient</h3>
+      <form id="client-form" class="form-grid">
+        <input type="hidden" name="id">
+        <label>Jméno / název <input name="name" required placeholder="Firma s.r.o."></label>
+        <label>IČO
+          <span class="model-row">
+            <input name="ico" placeholder="12345678">
+            <button type="button" id="ares-lookup" class="btn-ghost" title="Načíst název a adresu z registru ARES">ARES</button>
+          </span>
+        </label>
+        <label>Ulice a č.p. <input name="street"></label>
+        <label>Město <input name="city"></label>
+        <label>PSČ <input name="zip"></label>
+        <label>DIČ <input name="dic"></label>
+        <label>E-mail <input name="email" type="email"></label>
+        <div class="full form-actions">
+          <button type="submit" class="btn-primary">Uložit</button>
+          <button type="button" class="btn-ghost modal-close">Zrušit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: FAKTURA ============ -->
+  <div id="invoice-modal" class="modal no-print" hidden>
+    <div class="modal-box modal-wide">
+      <h3 id="invoice-modal-title">Nová faktura</h3>
+      <form id="invoice-form">
+        <input type="hidden" name="id">
+        <div class="form-grid">
+          <input type="hidden" name="originalInvoiceId">
+          <label>Typ dokladu
+            <select name="docType">
+              <option value="invoice">Faktura — daňový doklad</option>
+              <option value="proforma">Zálohová faktura</option>
+              <option value="creditNote">Opravný daňový doklad (dobropis)</option>
+            </select>
+          </label>
+          <label>Klient
+            <select name="clientId" required></select>
+          </label>
+          <label>Číslo faktury <input name="number" required></label>
+          <label>Variabilní symbol <input name="vs"></label>
+          <label>Datum vystavení <input name="issuedOn" type="date" required></label>
+          <label>Splatnost
+            <select name="dueDays">
+              <option value="7">7 dní</option>
+              <option value="14">14 dní</option>
+              <option value="21">21 dní</option>
+              <option value="30">30 dní</option>
+              <option value="45">45 dní</option>
+              <option value="60">60 dní</option>
+            </select>
+          </label>
+          <label>Způsob platby
+            <select name="paymentMethod">
+              <option value="Převodem">Převodem</option>
+              <option value="Hotově">Hotově</option>
+              <option value="Kartou">Kartou</option>
+            </select>
+          </label>
+          <label title="Když peníze přijdou v jiném roce, než kam příjem daňově patří (např. prosincová faktura zaplacená v lednu), zadej sem měsíc, do kterého se má příjem počítat.">Započítat příjem do období <input name="incomePeriod" type="month"> <span class="label-hint">volitelné — jinak platí datum úhrady</span></label>
+          <label class="checkbox-label"><input type="checkbox" name="rounding" checked> Zaokrouhlit celkovou částku na koruny</label>
+          <label>Měna
+            <select name="currency">
+              <option value="CZK" selected>CZK (Česká koruna)</option>
+              <option value="EUR">EUR (Euro)</option>
+              <option value="USD">USD (Americký dolar)</option>
+              <option value="GBP">GBP (Britská libra)</option>
+            </select>
+          </label>
+        </div>
+        <h4>Položky</h4>
+        <div class="lines-wrap">
+        <table class="lines-table">
+          <thead><tr><th>Popis</th><th class="w-qty">Počet</th><th class="w-unit">Jednotka</th><th class="w-price">Cena/ks (Kč)</th><th class="w-vat vat-only">DPH %</th><th class="w-sum">Celkem</th><th></th></tr></thead>
+          <tbody id="lines-body"></tbody>
+        </table>
+        </div>
+        <button type="button" id="add-line" class="btn-ghost" data-icon="plus">Přidat položku</button>
+        <div class="invoice-totals">
+          <div id="form-total" class="form-total"></div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">Uložit fakturu</button>
+          <button type="submit" id="save-draft" class="btn-ghost" data-icon="save">Uložit jako koncept</button>
+          <button type="button" class="btn-ghost modal-close">Zrušit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: NASTAVENÍ ODHADU DANÍ ============ -->
+  <div id="tax-modal" class="modal no-print" hidden>
+    <div class="modal-box modal-wide">
+      <h3 data-icon="sliders">Nastavení odhadu daní a pojištění</h3>
+      <p class="hint-block">Odhad je orientační — počítá s paušálními výdaji. Sazby, slevy a minima si nastav podle aktuálního roku (přednastavené hodnoty odpovídají roku 2025, novější si ověř např. na webu ČSSZ a své pojišťovny).</p>
+      <form id="tax-form">
+        <h4>Činnost v roce <span id="tax-year-label"></span> po měsících</h4>
+        <p class="tax-hint">Klikáním na měsíc přepínáš: <strong>Hlavní</strong> → <strong>Vedlejší</strong> → <strong>Nepodnikám</strong>. Vedlejší činnost (při zaměstnání, studiu…) má jiná minima — proto se rok počítá po měsících.</p>
+        <div id="tax-months" class="tax-months"></div>
+        <h4>Daň z příjmů</h4>
+        <div class="form-grid form-grid-3">
+          <label>Paušální výdaje
+            <select name="pausal">
+              <option value="80">80 % — řemeslné živnosti, zemědělství</option>
+              <option value="60">60 % — ostatní živnosti</option>
+              <option value="40">40 % — svobodná povolání, autoři</option>
+              <option value="30">30 % — nájem majetku</option>
+            </select>
+          </label>
+          <label>Sazba daně (%) <input name="danSazba" type="number" step="any" required></label>
+          <label>Zvýšená sazba (%) <input name="danSazba2" type="number" step="any"></label>
+          <label>Práh zvýšené sazby (Kč/rok) <input name="danPrah" type="number"></label>
+          <label>Sleva na poplatníka (Kč/rok) <input name="slevaPoplatnik" type="number" required></label>
+          <label>Platím zálohu na daň (Kč/měs.) <input name="zalohaDan" type="number" placeholder="0"></label>
+        </div>
+        <h4>Sociální pojištění</h4>
+        <div class="form-grid form-grid-3">
+          <label>Sazba (%) <input name="socSazba" type="number" step="any" required></label>
+          <label>Vyměřovací základ (% zisku) <input name="socVymZakladPct" type="number" step="any" required></label>
+          <label>Min. měsíční VZ — hlavní (Kč) <input name="socMinVZHlavni" type="number" required></label>
+          <label>Min. měsíční VZ — vedlejší (Kč) <input name="socMinVZVedlejsi" type="number"></label>
+          <label>Rozhodná částka pro vedlejší (Kč/rok) <input name="socRozhodna" type="number"></label>
+          <label>Platím zálohu (Kč/měs.) <input name="zalohaSoc" type="number" placeholder="0"></label>
+        </div>
+        <p class="tax-hint">Rozhodná částka: když je zisk z vedlejší činnosti pod touto hranicí (poměrně dle měsíců), sociální pojištění se z vedlejší činnosti neplatí.</p>
+        <h4>Zdravotní pojištění</h4>
+        <div class="form-grid form-grid-3">
+          <label>Sazba (%) <input name="zdravSazba" type="number" step="any" required></label>
+          <label>Vyměřovací základ (% zisku) <input name="zdravVymZakladPct" type="number" step="any" required></label>
+          <label>Min. měsíční VZ — hlavní (Kč) <input name="zdravMinVZ" type="number" required></label>
+          <label>Platím zálohu (Kč/měs.) <input name="zalohaZdrav" type="number" placeholder="0"></label>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">Uložit nastavení</button>
+          <button type="button" class="btn-ghost modal-close">Zrušit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: PRAVIDELNÁ FAKTURA ============ -->
+  <div id="recurring-modal" class="modal no-print" hidden>
+    <div class="modal-box modal-wide">
+      <h3 id="recurring-modal-title">Nová pravidelná faktura</h3>
+      <form id="recurring-form">
+        <input type="hidden" name="id">
+        <div class="form-grid">
+          <label>Název (pro tvůj přehled) <input name="title" placeholder="např. Měsíční paušál"></label>
+          <label>Klient
+            <select name="clientId" required></select>
+          </label>
+          <label>Opakování
+            <select name="interval">
+              <option value="weekly">Týdně</option>
+              <option value="monthly" selected>Měsíčně</option>
+              <option value="quarterly">Čtvrtletně</option>
+              <option value="halfyearly">Pololetně</option>
+              <option value="yearly">Ročně</option>
+            </select>
+          </label>
+          <label>Příští vystavení <input name="nextOn" type="date" required></label>
+          <label>Vystavovat do (nepovinné) <input name="endOn" type="date"></label>
+          <label>Splatnost
+            <select name="dueDays">
+              <option value="7">7 dní</option>
+              <option value="14">14 dní</option>
+              <option value="21">21 dní</option>
+              <option value="30">30 dní</option>
+              <option value="45">45 dní</option>
+              <option value="60">60 dní</option>
+            </select>
+          </label>
+          <label>Způsob platby
+            <select name="paymentMethod">
+              <option value="Převodem">Převodem</option>
+              <option value="Hotově">Hotově</option>
+              <option value="Kartou">Kartou</option>
+            </select>
+          </label>
+          <label class="checkbox-label"><input type="checkbox" name="rounding" checked> Zaokrouhlit celkovou částku na koruny</label>
+        </div>
+        <h4>Položky</h4>
+        <p class="hint-block">Do popisu položky můžeš vložit <strong>{obdobi}</strong> (07/2026), <strong>{mesic}</strong>, <strong>{rok}</strong> nebo <strong>{mesic_nazev}</strong> (červenec) — při vystavení se automaticky nahradí podle data faktury.</p>
+        <div class="lines-wrap">
+        <table class="lines-table">
+          <thead><tr><th>Popis</th><th class="w-qty">Počet</th><th class="w-unit">Jednotka</th><th class="w-price">Cena/ks (Kč)</th><th class="w-vat vat-only">DPH %</th><th class="w-sum">Celkem</th><th></th></tr></thead>
+          <tbody id="rec-lines-body"></tbody>
+        </table>
+        </div>
+        <button type="button" id="rec-add-line" class="btn-ghost" data-icon="plus">Přidat položku</button>
+        <div class="invoice-totals">
+          <div id="rec-form-total" class="form-total"></div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">Uložit pravidelnou fakturu</button>
+          <button type="button" class="btn-ghost modal-close">Zrušit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: PRAVIDELNÝ VÝDAJ ============ -->
+  <div id="recurring-expense-modal" class="modal no-print" hidden>
+    <div class="modal-box">
+      <h3 id="recurring-expense-modal-title">Nový pravidelný výdaj</h3>
+      <form id="recurring-expense-form" class="form-grid">
+        <input type="hidden" name="id">
+        <label class="full">Název (pro tvůj přehled) <input name="title" placeholder="např. Pronájem kanceláře"></label>
+        <label>Dodavatel <input name="supplier" required></label>
+        <label>Částka (Kč) <input name="amount" type="number" step="any" required></label>
+        <label>Kategorie
+          <select name="category">
+            <option>Software</option><option>Hardware</option><option>Služby</option>
+            <option>Hosting</option><option>Kancelář</option><option>Doprava</option><option selected>Ostatní</option>
+          </select>
+        </label>
+        <label>Opakování
+          <select name="interval">
+            <option value="weekly">Týdně</option>
+            <option value="monthly" selected>Měsíčně</option>
+            <option value="quarterly">Čtvrtletně</option>
+            <option value="halfyearly">Pololetně</option>
+            <option value="yearly">Ročně</option>
+          </select>
+        </label>
+        <label>Příští zaúčtování <input name="nextOn" type="date" required></label>
+        <label>Účtovat do (nepovinné) <input name="endOn" type="date"></label>
+        <label class="full">Popis (lze použít {obdobi}, {mesic}, {rok}, {mesic_nazev}) <input name="note" placeholder="co bylo nakoupeno"></label>
+        <div class="full form-actions">
+          <button type="submit" class="btn-primary">Uložit pravidelný výdaj</button>
+          <button type="button" class="btn-ghost modal-close">Zrušit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: PRAVIDELNÝ PŘÍJEM ============ -->
+  <div id="recurring-income-modal" class="modal no-print" hidden>
+    <div class="modal-box">
+      <h3 id="recurring-income-modal-title">Nový pravidelný příjem</h3>
+      <form id="recurring-income-form" class="form-grid">
+        <input type="hidden" name="id">
+        <label class="full">Název (pro tvůj přehled) <input name="title" placeholder="např. Výplata Apple"></label>
+        <label>Zdroj <input name="supplier" required placeholder="Apple / Google / úroky…"></label>
+        <label>Částka (Kč) <input name="amount" type="number" step="any" required></label>
+        <label>Opakování
+          <select name="interval">
+            <option value="weekly">Týdně</option>
+            <option value="monthly" selected>Měsíčně</option>
+            <option value="quarterly">Čtvrtletně</option>
+            <option value="halfyearly">Pololetně</option>
+            <option value="yearly">Ročně</option>
+          </select>
+        </label>
+        <label>Příští zaúčtování <input name="nextOn" type="date" required></label>
+        <label>Účtovat do (nepovinné) <input name="endOn" type="date"></label>
+        <label title="Když výplata přijde v jiném roce, než kam daňově patří. Lze použít dynamické {rok}-{mesic}.">Započítat do období <input name="period" placeholder="např. {rok}-{mesic}"> <span class="label-hint">volitelné</span></label>
+        <label class="full">Popis (lze použít {obdobi}, {mesic}, {rok}, {mesic_nazev}) <input name="note" placeholder="za co příjem je"></label>
+        <div class="full form-actions">
+          <button type="submit" class="btn-primary">Uložit pravidelný příjem</button>
+          <button type="button" class="btn-ghost modal-close">Zrušit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ NÁHLED FAKTURY (PDF přes tisk) ============ -->
+  <div id="preview-wrap" hidden>
+    <div id="convert-toolbar" class="preview-toolbar no-print" hidden>
+      <button id="conv-back" class="btn-ghost" data-icon="arrow-left">Zpět</button>
+      <label class="conv-ctl">Velikost
+        <select id="conv-scale">
+          <option value="50">50 %</option>
+          <option value="65">65 %</option>
+          <option value="80">80 %</option>
+          <option value="100" selected>100 %</option>
+          <option value="125">125 %</option>
+          <option value="150">150 %</option>
+        </select>
+      </label>
+      <label class="conv-ctl">Orientace
+        <select id="conv-orient">
+          <option value="portrait">Na výšku</option>
+          <option value="landscape">Na šířku</option>
+        </select>
+      </label>
+      <button id="conv-save" class="btn-primary" data-icon="save">Uložit PDF do souborů</button>
+      <span class="hint" id="conv-hint"></span>
+    </div>
+    <div id="preview-toolbar" class="preview-toolbar no-print">
+      <button id="preview-back" class="btn-ghost" data-icon="arrow-left">Zpět</button>
+      <button id="preview-print" class="btn-primary" data-icon="download">Stáhnout jako PDF</button>
+      <button id="preview-download" class="btn-primary" data-icon="download" hidden>Stáhnout originál</button>
+      <button id="preview-orig" class="btn-ghost" data-icon="paperclip" hidden>Originál PDF</button>
+      <button id="preview-template" class="btn-ghost" data-icon="file-text" hidden>Šablona aplikace</button>
+      <button id="preview-xml" class="btn-ghost" data-icon="download">Stáhnout XML</button>
+      <label class="checkbox-label" id="preview-stamp-toggle" style="margin-left:8px;" hidden><input type="checkbox" id="preview-stamp-checkbox" checked> Zobrazit razítko "Uhrazeno"</label>
+      <span class="hint" id="preview-hint">PDF se uloží do aplikace (Soubory) a rovnou stáhne k vám.</span>
+    </div>
+    <div id="invoice-paper" class="paper"></div>
+  </div>
+</div>
+<script src="qrcode.js"></script>
+<script src="app.js"></script>
+<script src="exports.js"></script>
+</body>
+</html>
