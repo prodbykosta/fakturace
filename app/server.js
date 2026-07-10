@@ -101,11 +101,12 @@ const CHROME = CHROME_PATHS.find(p => fs.existsSync(p)) || null;
 /* jednoduchý SMTP TLS klient (bez závislostí) */
 function simpleSendMail(opts) {
   return new Promise((resolve, reject) => {
-    const { host, port, user, pass, from, to, subject, text, pdfBuffer, pdfName } = opts;
+    const { host, port, user, pass, from, to, subject, text, pdfBuffer, pdfName, replyTo } = opts;
     const socket = tls.connect(port, host, { rejectUnauthorized: false }, () => {
       let step = 0;
+      let resBuf = "";
       let boundary = "----=_NextPart_" + crypto.randomBytes(16).toString("hex");
-      let body = `From: ${from}\r\nTo: ${to}\r\nSubject: =?utf-8?B?${Buffer.from(subject).toString('base64')}?=\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n` +
+      let body = `From: ${from}\r\nTo: ${to}\r\n${replyTo ? `Reply-To: ${replyTo}\r\n` : ""}Subject: =?utf-8?B?${Buffer.from(subject).toString('base64')}?=\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n` +
         `--${boundary}\r\nContent-Type: text/plain; charset="utf-8"\r\n\r\n${text}\r\n\r\n`;
       if (pdfBuffer) {
         body += `--${boundary}\r\nContent-Type: application/pdf; name="${pdfName}"\r\nContent-Transfer-Encoding: base64\r\nContent-Disposition: attachment; filename="${pdfName}"\r\n\r\n${pdfBuffer.toString("base64")}\r\n\r\n`;
@@ -125,8 +126,14 @@ function simpleSendMail(opts) {
       ];
 
       socket.on("data", data => {
-        const str = data.toString();
-        if (str.match(/^[45]\d{2}/)) return reject(new Error("SMTP Error: " + str)), socket.destroy();
+        resBuf += data.toString();
+        /* počkat na kompletní odpověď — víceřádkové odpovědi (250-…) končí až řádkem "250 …" */
+        if (!/\r?\n$/.test(resBuf)) return;
+        const lines = resBuf.split(/\r?\n/).filter(Boolean);
+        const last = lines[lines.length - 1] || "";
+        if (!/^\d{3}(?: |$)/.test(last)) return;
+        resBuf = "";
+        if (/^[45]/.test(last)) return reject(new Error("SMTP Error: " + last)), socket.destroy();
         if (step < cmds.length) socket.write(cmds[step++] + "\r\n");
       });
       socket.on("end", resolve);
@@ -298,9 +305,9 @@ const server = http.createServer(async (req, res) => {
             const meta = loadMeta();
             const oldRec = meta.find(m => m.id === b.replaceFileId);
             if (oldRec) {
-              try { fs.unlinkSync(path.join(DATA_DIR, oldRec.category, oldRec.name)); } catch {}
+              try { fs.unlinkSync(path.join(DATA, oldRec.category, oldRec.name)); } catch {}
               oldRec.category = b.category || "Ostatní";
-              const dir = path.join(DATA_DIR, oldRec.category);
+              const dir = path.join(DATA, oldRec.category);
               fs.mkdirSync(dir, { recursive: true });
               oldRec.name = path.basename(uniquePath(dir, b.name || "prevod.pdf"));
               fs.writeFileSync(path.join(dir, oldRec.name), buf);
@@ -349,6 +356,7 @@ const server = http.createServer(async (req, res) => {
           await simpleSendMail({
             host: b.smtpHost, port: Number(b.smtpPort) || 465, user: b.smtpUser, pass: b.smtpPass,
             from: b.smtpFrom || b.smtpUser, to: b.to, subject: b.subject, text: b.text,
+            replyTo: b.smtpReplyTo || "",
             pdfBuffer, pdfName: b.pdfName || "dokument.pdf"
           });
           return json(res, 200, { ok: true });

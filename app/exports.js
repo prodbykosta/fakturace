@@ -554,7 +554,7 @@ function invoicesXlsx(list) {
 function exportFilteredInvoices() {
   const f = document.getElementById("export-form").elements;
   const dateOf = i => f.dateBy.value === "paid" ? (i.paidOn || "") : i.issuedOn;
-  let list = store.invoices.filter(i => i.status !== "draft" && i.docType !== "proforma");
+  let list = store.invoices.filter(i => i.status !== "draft" && i.status !== "deleted" && i.docType !== "proforma");
   const statuses = [...document.querySelectorAll('#export-form [name="exp-status"]:checked')].map(ch => ch.value);
   list = list.filter(i => statuses.includes(invoiceStatus(i)[0] === "overdue" ? "issued" : invoiceStatus(i)[0]));
   if (f.period.value === "custom") {

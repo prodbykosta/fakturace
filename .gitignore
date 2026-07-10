@@ -1,7 +1,19 @@
-.DS_Store
-*.zip
-*.heic
-*.png
-*.jpg
-server.log
+# ===== WHITELIST: ignorovat VŠECHNO kromě souborů aplikace =====
+# (osobní faktury, zálohy, screenshoty atd. se tak nikdy nemůžou pushnout)
+/*
+
+# --- co se smí na GitHub ---
+!/.gitignore
+!/LICENSE
+!/README.md
+!/fakturace.gif
+!/app
+
+# --- výjimky uvnitř app/ (osobní data a smetí) ---
 app/data/
+app/.DS_Store
+
+# --- obecné smetí (kdyby se objevilo uvnitř povolených složek) ---
+.DS_Store
+server.log
+*.log

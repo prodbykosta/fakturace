@@ -38,11 +38,13 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 const CURRENCY_SYMBOLS = { CZK: ' Kč', EUR: ' €', USD: ' $', GBP: ' £' };
 const fmtMoney = (n, cur = 'CZK') => n.toLocaleString("cs-CZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + (CURRENCY_SYMBOLS[cur] || ' ' + cur);
 const fmtDate = iso => { const [y, m, d] = iso.split("-"); return `${d}. ${m}. ${y}`; };
-const todayISO = () => new Date().toISOString().slice(0, 10);
+/* lokální datum jako YYYY-MM-DD (toISOString by v ČR posouvalo den kvůli UTC) */
+const toISODate = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const todayISO = () => toISODate(new Date());
 const addDaysISO = (iso, days) => {
   const d = new Date(iso + "T12:00:00");
   d.setDate(d.getDate() + Number(days));
-  return d.toISOString().slice(0, 10);
+  return toISODate(d);
 };
 const stripDiacritics = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 const escXml = s => String(s ?? "").replace(/[<>&'"]/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" }[c]));
@@ -177,11 +179,15 @@ function incrementMonthInText(text) {
     mo++; if (mo > 12) { mo = 1; yr++; }
     return (m.length === 2 ? String(mo).padStart(2, '0') : String(mo)) + '/' + yr;
   });
-  /* český název měsíce */
-  for (let i = 0; i < 12; i++) {
-    const next = i === 11 ? CZ_MONTHS[0] : CZ_MONTHS[i + 1];
-    text = text.replace(new RegExp(CZ_MONTHS[i], 'gi'), next);
-  }
+  /* český název měsíce — jedním průchodem, jinak by se náhrady řetězily (březen→duben→…→leden);
+     „červenec" musí být v alternaci před „červen", proto řazení podle délky */
+  const monthsRe = new RegExp([...CZ_MONTHS].sort((a, b) => b.length - a.length).join("|"), "gi");
+  text = text.replace(monthsRe, m => {
+    const i = CZ_MONTHS.indexOf(m.toLowerCase());
+    if (i === -1) return m;
+    const next = CZ_MONTHS[(i + 1) % 12];
+    return m[0] === m[0].toUpperCase() ? next[0].toUpperCase() + next.slice(1) : next;
+  });
   return text;
 }
 function cloneInvoice(inv) {
@@ -307,7 +313,7 @@ document.getElementById("bank-list").addEventListener("click", e => {
     if (exact && confirm(`Automaticky spárovat s fakturou ${exact.number}?`)) {
       tx.invoiceId = exact.id; exact.status = 'paid'; exact.paidOn = tx.date;
     } else {
-      const opts = cand.map(i => `${i.number} (${fmtMoney(invoiceTotal(i).total)})`).join('\\n');
+      const opts = cand.map(i => `${i.number} (${fmtMoney(invoiceTotal(i).total)})`).join('\n');
       const num = prompt(`Zadejte číslo faktury pro spárování s částkou ${fmtMoney(tx.amount)}\n\nDostupné nezaplacené faktury:\n${opts}`);
       if (num) {
         const inv = store.invoices.find(i => i.number === num.trim());
@@ -342,8 +348,10 @@ document.getElementById("bank-file").addEventListener("change", async e => {
       const p = line.split(/[;,]/).map(s => s.replace(/^"|"$/g, ''));
       if (p.length < 5 || !p[0].match(/^\d/)) return;
       /* velmi hrubá heuristika, nutno přizpůsobit bance */
-      const dateRaw = p[0];
-      const date = dateRaw.includes('.') ? dateRaw.split('.').reverse().join('-') : dateRaw;
+      const dateRaw = p[0].trim();
+      const date = dateRaw.includes('.')
+        ? dateRaw.split('.').map(x => x.trim()).reverse().map((x, i) => i === 0 ? x : x.padStart(2, '0')).join('-')
+        : dateRaw;
       const amount = Number(p.find(x => x.match(/^-?\d+([.,]\d+)?$/))?.replace(',','.')) || 0;
       const vs = p.find(x => x.match(/^\d{4,10}$/)) || "";
       if (amount) txs.push({ id: uid(), date: date.substring(0, 10), amount, vs, party: p[p.length-1], currency: 'CZK' });
@@ -521,7 +529,7 @@ document.getElementById("invoice-sort").addEventListener("change", e => {
 function last12ISO() {
   const d = new Date();
   d.setFullYear(d.getFullYear() - 1);
-  return d.toISOString().slice(0, 10);
+  return toISODate(d);
 }
 function renderInvoiceStats() {
   const wrap = document.getElementById("invoice-stats");
@@ -748,7 +756,7 @@ invoiceForm.addEventListener("submit", e => {
       }
       if (!inv.auditLog) inv.auditLog = [];
       inv.auditLog.push({ action: 'issued', at: new Date().toISOString() });
-      autoSavePdf(inv, 'invoice').then(r => { if(r) { inv.fileId = r.id; saveStore(); } });
+      autoSavePdf(inv, 'invoice').then(r => { if (r && r.id) { inv.fileId = r.id; saveStore(); } });
     }
   } else {
     if (store.invoices.some(i => i.number === data.number) &&
@@ -757,7 +765,7 @@ invoiceForm.addEventListener("submit", e => {
     data.status = asDraft ? "draft" : "issued";
     store.invoices.push(data);
     if (data.status === "issued") {
-      autoSavePdf(data, 'invoice').then(r => { if(r) { data.fileId = r.id; saveStore(); } });
+      autoSavePdf(data, 'invoice').then(r => { if (r && r.id) { data.fileId = r.id; saveStore(); } });
     }
   }
   saveStore(); renderInvoices(); invoiceModal.hidden = true;
@@ -776,8 +784,8 @@ function finalizeProforma(pf) {
   };
   store.invoices.push(inv);
   pf.finalInvoiceId = inv.id;
-  autoSavePdf(inv, 'invoice').then(r => { if(r) { inv.fileId = r.id; saveStore(); } });
-  autoSavePdf(pf, 'invoice', pf.fileId).then(r => { if(r) { pf.fileId = r.id; saveStore(); } });
+  autoSavePdf(inv, 'invoice').then(r => { if (r && r.id) { inv.fileId = r.id; saveStore(); } });
+  autoSavePdf(pf, 'invoice').then(r => { if (r && r.id) { pf.fileId = r.id; saveStore(); } });
   saveStore(); renderInvoices();
   showPreview(inv);
 }
@@ -908,7 +916,7 @@ document.addEventListener("click", e => {
   if (b.dataset.paid) {
     const inv = store.invoices.find(i => i.id === b.dataset.paid);
     inv.status = "paid"; inv.paidOn = todayISO();
-    autoSavePdf(inv, 'invoice').then(r => { if(r) { inv.fileId = r.id; saveStore(); } });
+    autoSavePdf(inv, 'invoice').then(r => { if (r && r.id) { inv.fileId = r.id; saveStore(); } });
     saveStore(); renderInvoices();
     if (isProforma(inv) && !inv.finalInvoiceId &&
         confirm("Zálohovka je uhrazená. Vystavit k ní teď ostrou fakturu (daňový doklad)?")) {
@@ -922,13 +930,13 @@ document.addEventListener("click", e => {
   if (b.dataset.cancel && confirm("Stornovat fakturu? Přestane se počítat do příjmů.")) {
     const inv = store.invoices.find(i => i.id === b.dataset.cancel);
     inv.status = "cancelled";
-    autoSavePdf(inv, 'invoice').then(r => { if(r) { inv.fileId = r.id; saveStore(); } });
+    autoSavePdf(inv, 'invoice').then(r => { if (r && r.id) { inv.fileId = r.id; saveStore(); } });
     saveStore(); renderInvoices();
   }
   if (b.dataset.uncancel) {
     const inv = store.invoices.find(i => i.id === b.dataset.uncancel);
     inv.status = "issued";
-    autoSavePdf(inv, 'invoice').then(r => { if(r) { inv.fileId = r.id; saveStore(); } });
+    autoSavePdf(inv, 'invoice').then(r => { if (r && r.id) { inv.fileId = r.id; saveStore(); } });
     saveStore(); renderInvoices();
   }
   if (b.dataset.view) showPreview(store.invoices.find(i => i.id === b.dataset.view));
@@ -1373,33 +1381,33 @@ function renderDashboard() {
 
   if (mode === "this_month") {
     periodLabel = "tento měsíc";
-    const st = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0,10);
-    const en = new Date(today.getFullYear(), today.getMonth()+1, 0).toISOString().slice(0,10);
+    const st = toISODate(new Date(today.getFullYear(), today.getMonth(), 1));
+    const en = toISODate(new Date(today.getFullYear(), today.getMonth()+1, 0));
     inWin = d => d && d >= st && d <= en;
     for (let i = 11; i >= 0; i--) { const d = new Date(today.getFullYear(), today.getMonth() - i, 1); months.push({ y: d.getFullYear(), m: d.getMonth() }); }
   } else if (mode === "last_month") {
     periodLabel = "minulý měsíc";
-    const st = new Date(today.getFullYear(), today.getMonth()-1, 1).toISOString().slice(0,10);
-    const en = new Date(today.getFullYear(), today.getMonth(), 0).toISOString().slice(0,10);
+    const st = toISODate(new Date(today.getFullYear(), today.getMonth()-1, 1));
+    const en = toISODate(new Date(today.getFullYear(), today.getMonth(), 0));
     inWin = d => d && d >= st && d <= en;
     for (let i = 11; i >= 0; i--) { const d = new Date(today.getFullYear(), today.getMonth() - i, 1); months.push({ y: d.getFullYear(), m: d.getMonth() }); }
   } else if (mode === "this_week") {
     periodLabel = "tento týden";
     const stD = new Date(today); stD.setDate(today.getDate() - (today.getDay()||7) + 1);
     const enD = new Date(stD); enD.setDate(stD.getDate() + 6);
-    const st = stD.toISOString().slice(0,10); const en = enD.toISOString().slice(0,10);
+    const st = toISODate(stD); const en = toISODate(enD);
     inWin = d => d && d >= st && d <= en;
     for (let i = 11; i >= 0; i--) { const d = new Date(today.getFullYear(), today.getMonth() - i, 1); months.push({ y: d.getFullYear(), m: d.getMonth() }); }
   } else if (mode === "last_30d") {
     periodLabel = "posl. 30 dní";
     const stD = new Date(today); stD.setDate(today.getDate() - 30);
-    const st = stD.toISOString().slice(0,10); const en = todayStr;
+    const st = toISODate(stD); const en = todayStr;
     inWin = d => d && d >= st && d <= en;
     for (let i = 11; i >= 0; i--) { const d = new Date(today.getFullYear(), today.getMonth() - i, 1); months.push({ y: d.getFullYear(), m: d.getMonth() }); }
   } else if (mode === "12m") {
     periodLabel = "posl. 12 měs.";
     for (let i = 11; i >= 0; i--) { const d = new Date(today.getFullYear(), today.getMonth() - i, 1); months.push({ y: d.getFullYear(), m: d.getMonth() }); }
-    const st = new Date(months[0].y, months[0].m, 1).toISOString().slice(0,10);
+    const st = toISODate(new Date(months[0].y, months[0].m, 1));
     inWin = d => d && d >= st;
   } else {
     const yr = Number(mode);
@@ -1560,7 +1568,7 @@ function agingCard(realInv, today) {
   const totalOf = inv => invoiceTotal(inv).total;
   const allMax = Math.max(...buckets.map(b => b.items.reduce((a, i) => a + totalOf(i), 0)), 1);
   /* DSO = průměrná doba inkasa (posl. 12m zaplacených faktur) */
-  const from12 = (() => { const d = new Date(); d.setFullYear(d.getFullYear() - 1); return d.toISOString().slice(0, 10); })();
+  const from12 = (() => { const d = new Date(); d.setFullYear(d.getFullYear() - 1); return toISODate(d); })();
   const paid12 = realInv.filter(i => i.status === 'paid' && i.paidOn && i.paidOn >= from12);
   const dso = paid12.length ? Math.round(paid12.reduce((a, i) => a + daysDiff(i.paidOn, i.issuedOn), 0) / paid12.length) : 0;
   return `<div class="chart-card">
@@ -1652,7 +1660,15 @@ function sendReminder(inv) {
     if (serverMode && store.settings.smtpHost) {
       apiJson('/api/email', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: c.email, subject, text: body })
+        body: JSON.stringify({
+          to: c.email, subject, text: body,
+          smtpHost: store.settings.smtpHost,
+          smtpPort: store.settings.smtpPort,
+          smtpUser: store.settings.smtpUser,
+          smtpPass: store.settings.smtpPass,
+          smtpFrom: store.settings.smtpFrom,
+          smtpReplyTo: store.settings.smtpReplyTo
+        })
       }).then(r => {
         if (r.ok) alert(`Upomínka č. ${inv.reminderCount} odeslána na ${c.email}.`);
         else alert(`Upomínka uložena, ale e-mail se nepodařilo odeslat: ${r.error || 'neznámá chyba'}`);
@@ -1975,7 +1991,7 @@ document.getElementById("files-input").addEventListener("change", async e => {
 const isAnalyzable = f => /\.(pdf|png|jpe?g|heic|webp|tiff?|csv)$/i.test(f.name);
 
 function fileRow(f) {
-  const bDate = f.birthtime ? fmtDate(f.birthtime.slice(0, 10)) : fmtDate(new Date(f.addedAt).toISOString().slice(0, 10));
+  const bDate = fmtDate(toISODate(new Date(f.birthtime || f.addedAt)));
   const q = document.getElementById("file-search").value.trim();
   return `<tr draggable="true" ondragstart="event.dataTransfer.setData('text/plain', '${f.id}')" ondragend="this.style.opacity='1'" ondrag="this.style.opacity='0.5'">
     <td data-nolabel><label class="file-pick"><input type="checkbox" class="file-check" value="${f.id}"></label></td>
@@ -2022,10 +2038,10 @@ async function renderFiles() {
        : currentFolder ? `<span class="crumb-sep">›</span><span class="crumb active">${escHtml(currentFolder)}</span>` : "");
 
   if (q) {
-    const tokens = q.split(/\\s+/).filter(Boolean);
+    const tokens = q.split(/\s+/).filter(Boolean);
     const found = all.filter(f => {
-      const bDate = f.birthtime ? fmtDate(f.birthtime.slice(0, 10)) : fmtDate(new Date(f.addedAt).toISOString().slice(0, 10));
-      const bDateIso = f.birthtime ? f.birthtime.slice(0, 10) : new Date(f.addedAt).toISOString().slice(0, 10);
+      const bDateIso = toISODate(new Date(f.birthtime || f.addedAt));
+      const bDate = fmtDate(bDateIso);
       
       let fullText = [
         f.name, f.note, f.category, f.ai || "", f.period || "", fmtBytes(f.size), bDate, bDateIso
@@ -2055,10 +2071,10 @@ async function renderFiles() {
       }
 
       const rawString = fullText.filter(Boolean).join(" ").toLowerCase();
-      const strippedString = rawString.replace(/\\s+/g, "");
+      const strippedString = rawString.replace(/\s+/g, "");
 
       // Každý token (slovo z dotazu) musí být nalezen buď v čistém textu, nebo ve verzi bez mezer (např. 01.02.2026)
-      return tokens.every(t => rawString.includes(t) || strippedString.includes(t.replace(/\\s+/g, "")));
+      return tokens.every(t => rawString.includes(t) || strippedString.includes(t.replace(/\s+/g, "")));
     }).sort((a, b) => b.addedAt - a.addedAt);
     wrap.innerHTML = found.length ? filesTable(found) : `<div class="empty-note">Nic nenalezeno.</div>`;
     return;
@@ -3661,7 +3677,7 @@ quoteForm.addEventListener("submit", e => {
     store.quotes.push(data);
     q = data;
   }
-  autoSavePdf(q, 'quote').then(r => { if(r) { q.fileId = r.id; saveStore(); } });
+  autoSavePdf(q, 'quote').then(r => { if (r && r.id) { q.fileId = r.id; saveStore(); } });
   saveStore(); renderQuotes(); quoteModal.hidden = true;
 });
 
@@ -4275,8 +4291,8 @@ async function linkAndSyncInvoices() {
         inv.fileId = match.id;
         storeChanged = true;
       }
-    } else if (!inv.fileId) {
-      // Pokud nemáme vůbec nic, vygenerujeme PDF ze šablony
+    } else if (!inv.fileId && inv.status !== 'draft' && inv.status !== 'deleted') {
+      // Pokud nemáme vůbec nic, vygenerujeme PDF ze šablony (koncepty a koš přeskočit)
       const r = await autoSavePdf(inv, 'invoice');
       if (r && r.id) {
         inv.fileId = r.id;
