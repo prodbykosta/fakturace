@@ -474,7 +474,10 @@ body.dark {
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.5), 0 4px 6px -2px rgba(0,0,0,.45);
   background: var(--bg-main);
   color: var(--ink);
+  color-scheme: dark;   /* nativní dropdowny, datumy, inputy a scrollbary se vykreslí tmavě */
 }
+body.dark .topbar { background: rgba(26,34,52,.85); }
+body.dark select option { background: var(--bg-card); color: var(--ink); }
 /* faktura, náhled dokladu a tisk zůstávají na bílém papíře i v tmavém režimu */
 body.dark .paper, body.dark .paper-doc, body.dark .inv-tpl,
 body.dark #invoice-paper, body.dark .logo-preview { background: #fff; color: #0f172a; }
