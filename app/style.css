@@ -133,8 +133,14 @@ body {
     padding: 10px 20px 20px; border-bottom: 1px solid var(--hairline);
     box-shadow: var(--shadow-md);
     opacity: 0; pointer-events: none; transform: translateY(-10px);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     align-items: center;
+    /* když je položek víc než se vejde na výšku obrazovky, menu se dá odscrollovat */
+    max-height: calc(100vh - 100%);
+    max-height: calc(100dvh - 100%);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
   .topbar nav.open { opacity: 1; pointer-events: auto; transform: translateY(0); }
   .tab-btn { width: 100%; text-align: center; padding: 14px 16px; font-size: 15px; }
