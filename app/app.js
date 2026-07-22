@@ -270,6 +270,16 @@ if (burgerBtn) {
   });
 }
 
+/* přepínač tmavého režimu v liště (slunce/měsíc) — přepne, uloží a nasadí hned */
+const themeToggle = document.getElementById("theme-toggle");
+if (themeToggle) {
+  themeToggle.addEventListener("click", () => {
+    store.settings.darkMode = !store.settings.darkMode;
+    saveStore();
+    applyAppearance();
+  });
+}
+
 document.querySelectorAll(".tab-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b === btn));
