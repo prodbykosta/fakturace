@@ -362,6 +362,10 @@ button.crumb:hover { color: var(--ink); }
 }
 .bulk-bar .bulk-move-group { display: flex; gap: 8px; align-items: center; }
 .bulk-bar select { width: auto; padding: 8px 30px 8px 12px; font-size: 14px; }
+#inv-bulk-bar #inv-bulk-count { font-weight: 700; }
+.list-table th.chk-col, .list-table td[data-nolabel] { width: 34px; text-align: center; }
+.inv-check, #inv-check-all { width: 16px; height: 16px; cursor: pointer; }
+.inv-czk-equiv { display: flex; justify-content: flex-end; font-size: 9pt; color: var(--ink-2); margin-top: 2mm; }
 
 /* adresa z AI analýzy */
 .ai-addr { font-size: 13px; color: var(--ink-2); margin-bottom: 12px; padding: 8px 12px; background: var(--hairline-soft); border-radius: 8px; font-weight: 500; }
@@ -386,6 +390,99 @@ button.crumb:hover { color: var(--ink); }
 .doc-table th { text-align: left; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); border-bottom: 2px solid var(--ink); padding: 0.5em 0.5em 0.5em 0; }
 .doc-table td { border-bottom: 1px solid var(--hairline); padding: 0.5em 0.5em 0.5em 0; vertical-align: top; word-break: break-word; }
 .doc-pre { white-space: pre-wrap; word-break: break-word; font-size: 0.95em; font-family: ui-monospace, Menlo, monospace; color: var(--ink-2); }
+
+/* ---- roční daně: tisknutelný souhrn ---- */
+.ann-table { width: 100%; border-collapse: collapse; font-size: 1em; max-width: 620px; }
+.ann-table td { padding: 0.55em 0; border-bottom: 1px solid var(--hairline); }
+.ann-table td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ann-table tr.ann-head td { font-family: var(--display); font-size: 1.15em; font-weight: 700; border-bottom: 2px solid var(--ink); padding-bottom: 0.5em; }
+.ann-table tr.ann-sub td { font-weight: 600; }
+.ann-table tr.ann-total td { font-size: 1.15em; font-weight: 800; border-top: 2px solid var(--ink); border-bottom: none; padding-top: 0.6em; }
+.ann-note { margin-top: 1.2em; font-size: 0.85em; color: var(--muted); max-width: 620px; }
+
+/* ---- roční daně: živý přehled v modálu ---- */
+.annual-result { margin: 18px 0 6px; }
+.ann-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.ann-col { background: var(--surface-2, rgba(128,128,128,.06)); border: 1px solid var(--hairline); border-radius: 10px; padding: 12px 14px; }
+.ann-col-h { font-weight: 700; font-size: 0.9em; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--hairline); }
+.ann-r { display: flex; justify-content: space-between; gap: 10px; font-size: 0.88em; padding: 3px 0; color: var(--muted); }
+.ann-r strong { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ann-r.hl { margin-top: 4px; padding-top: 6px; border-top: 1px dashed var(--hairline); font-size: 0.95em; }
+.ann-r.hl span, .ann-r.hl strong { color: var(--ink); font-weight: 700; }
+.ann-pay { color: var(--status-critical, #c0503a); font-weight: 700; }
+.ann-ok { color: var(--status-good, #1f9d62); font-weight: 700; }
+.annual-actions { flex-wrap: wrap; }
+@media (max-width: 640px) { .ann-grid { grid-template-columns: 1fr; } }
+
+/* ---- hlídání obratu / limitů ---- */
+.limit-row { margin: 14px 0; }
+.limit-head { display: flex; justify-content: space-between; gap: 10px; font-size: 0.9em; margin-bottom: 6px; }
+.limit-head .amount { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.limit-scale { font-size: 0.78em; color: var(--muted); margin-top: 5px; }
+.limit-alert { margin-top: 12px; padding: 8px 12px; border-radius: 8px; font-size: 0.86em; font-weight: 600; }
+.limit-alert.warn { background: var(--status-warning-bg, rgba(200,140,20,.12)); color: var(--status-warning, #b5820f); }
+.limit-alert.crit { background: var(--status-critical-bg, rgba(192,80,58,.12)); color: var(--status-critical, #c0503a); }
+
+/* ---- štítky faktur + doložka reverse charge ---- */
+.inv-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.inv-tag { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--accent-wash, rgba(61,78,172,.1)); color: var(--accent, #3d4eac); }
+.inv-rc-note { margin-top: 6mm; padding: 3mm 4mm; border: 1px solid var(--hairline); border-radius: 6px; font-size: 0.82em; color: var(--ink-2, #444); background: rgba(128,128,128,.05); }
+
+/* ---- výsledek ověření VIES ---- */
+.vies-ok, .vies-bad { padding: 8px 12px; border-radius: 8px; font-size: 0.86em; display: flex; align-items: center; gap: 6px; }
+.vies-ok { background: rgba(31,157,98,.12); color: var(--status-good, #1f9d62); }
+.vies-bad { background: rgba(192,80,58,.12); color: var(--status-critical, #c0503a); }
+.vies-ok .ico, .vies-bad .ico { width: 16px; height: 16px; flex: none; }
+
+/* ---- logo, razítko, šablony faktury ---- */
+.inv-logo { margin-right: auto; }
+.inv-logo img { max-height: 64px; max-width: 220px; object-fit: contain; }
+.inv-stamp { margin-top: 8mm; text-align: right; }
+.inv-stamp img { max-height: 130px; max-width: 260px; object-fit: contain; }
+/* moderní: barevná hlavička přes celou šířku */
+.tpl-modern .inv-head { align-items: center; padding: 5mm 6mm; background: var(--accent); border-radius: 8px; margin-bottom: 10mm; }
+.tpl-modern .inv-title-block { border-left: none; padding-left: 0; }
+.tpl-modern .inv-title, .tpl-modern .inv-title .inv-number { color: #fff; }
+.tpl-modern .inv-logo img { filter: brightness(0) invert(1); }
+/* minimalistická: bez barevného rámečku */
+.tpl-minimal .inv-title-block { border-left: none; padding-left: 0; }
+.tpl-minimal .inv-title { font-weight: 700; }
+.tpl-minimal .inv-total { color: var(--ink); }
+
+/* ---- náhledy loga/razítka v nastavení ---- */
+.logo-field .logo-upload { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+.logo-preview { max-height: 48px; max-width: 160px; object-fit: contain; border: 1px solid var(--hairline); border-radius: 6px; padding: 4px; background: #fff; }
+
+/* ---- tmavý vzhled aplikace ---- */
+body.dark {
+  --bg-main: #0f1523;
+  --bg-card: #1a2234;
+  --ink: #e6edf7;
+  --ink-2: #aab6c8;
+  --muted: #7d8aa0;
+  --hairline: #2b3650;
+  --hairline-soft: #212b41;
+  --accent-soft: #2a2418;
+  --shadow-sm: 0 1px 2px 0 rgba(0,0,0,.4);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,.45), 0 2px 4px -1px rgba(0,0,0,.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.5), 0 4px 6px -2px rgba(0,0,0,.45);
+  background: var(--bg-main);
+  color: var(--ink);
+}
+/* faktura, náhled dokladu a tisk zůstávají na bílém papíře i v tmavém režimu */
+body.dark .paper, body.dark .paper-doc, body.dark .inv-tpl,
+body.dark #invoice-paper, body.dark .logo-preview { background: #fff; color: #0f172a; }
+body.dark .inv-footer, body.dark .party-label { color: inherit; }
+
+/* ---- pokladní doklad / dodací list ---- */
+.doc-block { max-width: 640px; }
+.doc-parties { display: flex; gap: 24px; margin-bottom: 6mm; }
+.doc-parties > div { flex: 1; }
+.doc-lbl { font-size: 0.8em; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 700; margin-bottom: 3px; }
+.doc-amount { margin: 5mm 0; font-size: 1.2em; }
+.doc-meta { margin: 4mm 0; color: var(--ink-2); font-size: 0.9em; }
+.doc-sign { display: flex; justify-content: space-between; gap: 40px; margin-top: 16mm; }
+.doc-sign > div { flex: 1; border-top: 1px solid var(--ink); padding-top: 3px; font-size: 0.85em; color: var(--muted); text-align: center; }
 .doc-img { max-width: 100%; display: block; margin: 0 auto; border-radius: 8px; }
 
 /* ============ AI analýza ============ */

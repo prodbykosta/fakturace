@@ -409,6 +409,95 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
+      /* VIES — kontrola DIČ plátce DPH v EU (proxy kvůli CORS) */
+      if (parts[1] === "vies" && req.method === "GET") {
+        const raw = String(parts[2] || "").replace(/\s/g, "").toUpperCase();
+        const m = raw.match(/^([A-Z]{2})(.+)$/);
+        if (!m) return json(res, 200, { error: "DIČ musí začínat kódem státu, např. CZ12345678" });
+        const [, country, number] = m;
+        try {
+          const r = await fetch("https://ec.europa.eu/taxation_customs/vies/rest-api/ms/" + country + "/vat/" + encodeURIComponent(number), {
+            headers: { "Accept": "application/json" },
+            signal: AbortSignal.timeout(15000)
+          });
+          if (!r.ok) return json(res, 200, { error: `VIES vrátil chybu ${r.status}` });
+          const d = await r.json();
+          return json(res, 200, {
+            valid: !!d.isValid,
+            dic: country + number,
+            name: d.name && d.name !== "---" ? d.name : "",
+            address: d.address && d.address !== "---" ? d.address : "",
+            requestDate: d.requestDate || ""
+          });
+        } catch (e) {
+          return json(res, 200, { error: "VIES neodpovídá: " + e.message });
+        }
+      }
+
+      /* Nespolehlivý plátce DPH — registr MF ČR (SOAP proxy) */
+      if (parts[1] === "unreliable" && req.method === "GET") {
+        const dic = String(parts[2] || "").replace(/\s/g, "").replace(/^CZ/i, "");
+        if (!/^\d{8,10}$/.test(dic)) return json(res, 200, { error: "DIČ musí být 8–10 číslic (bez CZ)" });
+        const soap = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="http://adis.mfcr.cz/rozhraniCRPDPH/">
+<soapenv:Body><urn:StatusNespolehlivyPlatceRequest><urn:dic>${dic}</urn:dic></urn:StatusNespolehlivyPlatceRequest></soapenv:Body>
+</soapenv:Envelope>`;
+        try {
+          const r = await fetch("https://adisrws.mfcr.cz/adistc/axis2/services/rozhraniCRPDPH.rozhraniCRPDPHSOAP", {
+            method: "POST",
+            headers: { "Content-Type": "text/xml; charset=UTF-8", "SOAPAction": "getStatusNespolehlivyPlatce" },
+            body: soap,
+            signal: AbortSignal.timeout(15000)
+          });
+          if (!r.ok) return json(res, 200, { error: `Registr MF vrátil chybu ${r.status}` });
+          const txt = await r.text();
+          if (/statusText="[^"]*chyb/i.test(txt) || /<[^>]*errorText/i.test(txt)) {
+            const em = txt.match(/statusText="([^"]+)"/i);
+            return json(res, 200, { error: em ? em[1] : "DIČ nenalezeno v registru plátců DPH" });
+          }
+          const m = txt.match(/nespolehlivyPlatce="([^"]+)"/i);
+          if (!m || m[1].toUpperCase() === "NENALEZEN") return json(res, 200, { found: false, error: "DIČ není v registru plátců DPH (subjekt není plátcem DPH)" });
+          const ucty = [...txt.matchAll(/<[^>]*cislo="([^"]+)"[^>]*kodBanky="([^"]+)"/gi)].map(x => `${x[1]}/${x[2]}`);
+          return json(res, 200, {
+            found: true, dic: "CZ" + dic,
+            unreliable: m[1].toUpperCase() === "ANO",
+            status: m[1],
+            publishedAccounts: ucty
+          });
+        } catch (e) {
+          return json(res, 200, { error: "Registr MF neodpovídá: " + e.message });
+        }
+      }
+
+      /* Kurz ČNB — denní kurz měny k datu (proxy kvůli CORS) */
+      if (parts[1] === "rate" && req.method === "GET") {
+        const cur = String(parts[2] || "").toUpperCase();
+        const date = String(parts[3] || "");
+        if (!/^[A-Z]{3}$/.test(cur)) return json(res, 200, { error: "Neplatný kód měny" });
+        if (cur === "CZK") return json(res, 200, { rate: 1, amount: 1, currency: "CZK" });
+        try {
+          const dm = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          const dParam = dm ? `?date=${dm[3]}.${dm[2]}.${dm[1]}` : "";
+          const r = await fetch("https://www.cnb.cz/cs/financni-trhy/devizovy-trh/kurzy-devizoveho-trhu/kurzy-devizoveho-trhu/denni_kurz.txt" + dParam, {
+            signal: AbortSignal.timeout(15000)
+          });
+          if (!r.ok) return json(res, 200, { error: `ČNB vrátil chybu ${r.status}` });
+          const txt = await r.text();
+          /* formát: "země|měna|množství|kód|kurz" — desetinná čárka */
+          for (const line of txt.split("\n")) {
+            const p = line.split("|");
+            if (p.length >= 5 && p[3].trim() === cur) {
+              const amount = Number(p[2].replace(/\s/g, "").replace(",", ".")) || 1;
+              const rate = Number(p[4].replace(/\s/g, "").replace(",", ".")) || 0;
+              return json(res, 200, { rate, amount, currency: cur, perUnit: rate / amount, date: txt.split("\n")[0].split(" ")[0] });
+            }
+          }
+          return json(res, 200, { error: `Měna ${cur} není v kurzovním lístku ČNB` });
+        } catch (e) {
+          return json(res, 200, { error: "ČNB neodpovídá: " + e.message });
+        }
+      }
+
       if (parts[1] === "ollama" && req.method === "POST") {
         const b = JSON.parse(await readBody(req));
         const base = (b.url || "http://localhost:11434").replace(/\/+$/, "");
